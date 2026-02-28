@@ -42,7 +42,7 @@ import type { Order, OrderStatus } from '@/types';
 import { toast } from 'sonner';
 
 export function OrdersList() {
-  const { orders, updateOrder, updateOrderStatus, deleteOrder } = useOrders();
+  const { orders, updateOrder, updateOrderStatus, deleteOrder, refreshOrders } = useOrders();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -118,6 +118,8 @@ export function OrdersList() {
       setEditForm({ ...updated });
       setIsEditing(false);
       toast.success('บันทึกการแก้ไขสำเร็จ');
+      // Refresh orders list to show updated data
+      await refreshOrders();
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to update order';
       toast.error('บันทึกไม่สำเร็จ: ' + message);
