@@ -1,6 +1,7 @@
 # Environment variables
 .env
 .env.*
+.env.local
 
 # Node
 node_modules/
@@ -8,6 +9,7 @@ node_modules/
 # Build output
 /dist/
 app/dist/
+app/.next/
 
 # Logs
 npm-debug.log*
@@ -16,3 +18,6 @@ yarn-error.log*
 
 # OS
 .DS_Store
+
+# Old app backup (remove after confirming migration)
+app-old/

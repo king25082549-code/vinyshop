@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useMemo } from 'react';
 import { useOrders } from '@/hooks/useOrders';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -235,7 +237,7 @@ export function Finance() {
                     tickFormatter={(value) => `฿${value / 1000}k`}
                   />
                   <Tooltip
-                    formatter={(value: number) => formatCurrency(value)}
+                    formatter={(value) => formatCurrency(Number(value))}
                     labelFormatter={(label) => formatDate(label as string)}
                   />
                   <Bar dataKey="revenue" fill="#3B82F6" name="รายได้รวม" radius={[4, 4, 0, 0]} />

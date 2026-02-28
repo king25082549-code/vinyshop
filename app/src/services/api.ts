@@ -1,5 +1,5 @@
-// API client for backend communication
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+// API client for backend communication (Next.js API Routes)
+const API_BASE_URL = '/api';
 
 class ApiError extends Error {
   status: number;

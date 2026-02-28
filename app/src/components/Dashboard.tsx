@@ -1,3 +1,5 @@
+'use client';
+
 import { useEffect, useState } from 'react';
 import { useOrders } from '@/hooks/useOrders';
 import { useInventory } from '@/hooks/useInventory';
@@ -176,7 +178,7 @@ export function Dashboard() {
                     tickFormatter={(value) => `฿${value / 1000}k`}
                   />
                   <Tooltip
-                    formatter={(value: number) => formatCurrency(value)}
+                    formatter={(value) => formatCurrency(Number(value))}
                     contentStyle={{
                       backgroundColor: 'white',
                       border: '1px solid #E2E8F0',
