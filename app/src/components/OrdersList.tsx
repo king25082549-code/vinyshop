@@ -6,8 +6,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -33,7 +31,6 @@ import {
   Search,
   Filter,
   Eye,
-  Pencil,
   X,
 } from 'lucide-react';
 import { ORDER_STATUS_CONFIG, JOB_TYPE_OPTIONS } from '@/lib/constants';
@@ -42,13 +39,11 @@ import type { Order, OrderStatus } from '@/types';
 import { toast } from 'sonner';
 
 export function OrdersList() {
-  const { orders, updateOrder, updateOrderStatus, deleteOrder, refreshOrders } = useOrders();
+  const { orders, updateOrder, updateOrderStatus, deleteOrder } = useOrders();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState<Partial<Order>>({});
 
   // Filter orders
   const filteredOrders = orders.filter((order) => {
@@ -74,56 +69,7 @@ export function OrdersList() {
 
   const openOrderDialog = (order: Order) => {
     setSelectedOrder(order);
-    setEditForm({ ...order });
-    setIsEditing(false);
     setIsDialogOpen(true);
-  };
-
-  const handleEditCancel = () => {
-    if (!selectedOrder) return;
-    setEditForm({ ...selectedOrder });
-    setIsEditing(false);
-  };
-
-  const handleEditSave = async () => {
-    if (!selectedOrder) return;
-
-    try {
-      const width = Number(editForm.width ?? selectedOrder.width);
-      const height = Number(editForm.height ?? selectedOrder.height);
-      const quantity = Number(editForm.quantity ?? selectedOrder.quantity);
-      const unitPrice = Number(editForm.unitPrice ?? selectedOrder.unitPrice);
-      const deposit = Number(editForm.deposit ?? selectedOrder.deposit);
-
-      const totalPrice = calculatePrice(width, height, quantity, unitPrice);
-      const remaining = Math.max(totalPrice - deposit, 0);
-
-      const updated = await updateOrder(selectedOrder.id, {
-        customerName: editForm.customerName ?? selectedOrder.customerName,
-        phone: editForm.phone ?? selectedOrder.phone,
-        lineId: editForm.lineId ?? selectedOrder.lineId,
-        jobType: editForm.jobType ?? selectedOrder.jobType,
-        width,
-        height,
-        quantity,
-        unitPrice,
-        totalPrice,
-        deposit,
-        remaining,
-        dueDate: (editForm.dueDate as string | undefined) ?? selectedOrder.dueDate,
-        notes: editForm.notes ?? selectedOrder.notes,
-      });
-
-      setSelectedOrder(updated);
-      setEditForm({ ...updated });
-      setIsEditing(false);
-      toast.success('บันทึกการแก้ไขสำเร็จ');
-      // Refresh orders list to show updated data
-      await refreshOrders();
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to update order';
-      toast.error('บันทึกไม่สำเร็จ: ' + message);
-    }
   };
 
   return (
@@ -284,9 +230,7 @@ export function OrdersList() {
         onOpenChange={(open) => {
           setIsDialogOpen(open);
           if (!open) {
-            setIsEditing(false);
             setSelectedOrder(null);
-            setEditForm({});
           }
         }}
       >
@@ -304,17 +248,6 @@ export function OrdersList() {
                     <p className="font-bold text-lg">#{selectedOrder.id.slice(0, 8).toUpperCase()}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    {!isEditing ? (
-                      <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
-                        <Pencil className="w-4 h-4 mr-2" />
-                        แก้ไข
-                      </Button>
-                    ) : (
-                      <>
-                        <Button size="sm" onClick={handleEditSave}>บันทึก</Button>
-                        <Button variant="outline" size="sm" onClick={handleEditCancel}>ยกเลิก</Button>
-                      </>
-                    )}
                     <span
                       className="px-3 py-1 rounded-full text-sm font-medium"
                       style={{
@@ -332,28 +265,16 @@ export function OrdersList() {
                 <h4 className="font-medium text-slate-800">ข้อมูลลูกค้า</h4>
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div className="space-y-1">
-                    <Label>ชื่อ</Label>
-                    <Input
-                      disabled={!isEditing}
-                      value={(editForm.customerName as string | undefined) ?? ''}
-                      onChange={(e) => setEditForm((p) => ({ ...p, customerName: e.target.value }))}
-                    />
+                    <p className="text-sm text-slate-500">ชื่อ</p>
+                    <p className="font-medium">{selectedOrder.customerName}</p>
                   </div>
                   <div className="space-y-1">
-                    <Label>เบอร์โทร</Label>
-                    <Input
-                      disabled={!isEditing}
-                      value={(editForm.phone as string | undefined) ?? ''}
-                      onChange={(e) => setEditForm((p) => ({ ...p, phone: e.target.value }))}
-                    />
+                    <p className="text-sm text-slate-500">เบอร์โทร</p>
+                    <p className="font-medium">{selectedOrder.phone}</p>
                   </div>
                   <div className="col-span-2 space-y-1">
-                    <Label>LINE ID</Label>
-                    <Input
-                      disabled={!isEditing}
-                      value={(editForm.lineId as string | undefined) ?? ''}
-                      onChange={(e) => setEditForm((p) => ({ ...p, lineId: e.target.value }))}
-                    />
+                    <p className="text-sm text-slate-500">LINE ID</p>
+                    <p className="font-medium">{selectedOrder.lineId || '-'}</p>
                   </div>
                 </div>
               </div>
@@ -362,62 +283,24 @@ export function OrdersList() {
                 <h4 className="font-medium text-slate-800">รายละเอียดงาน</h4>
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div className="space-y-1">
-                    <Label>ประเภทงาน</Label>
-                    <Select
-                      value={(editForm.jobType as string | undefined) ?? selectedOrder.jobType}
-                      onValueChange={(value) => setEditForm((p) => ({ ...p, jobType: value as Order['jobType'] }))}
-                      disabled={!isEditing}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="เลือกประเภทงาน" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {JOB_TYPE_OPTIONS.map((t) => (
-                          <SelectItem key={t.value} value={t.value}>
-                            {t.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label>จำนวน</Label>
-                    <Input
-                      disabled={!isEditing}
-                      type="number"
-                      value={String((editForm.quantity as number | undefined) ?? selectedOrder.quantity)}
-                      onChange={(e) => setEditForm((p) => ({ ...p, quantity: Number(e.target.value) }))}
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label>กว้าง (m)</Label>
-                    <Input
-                      disabled={!isEditing}
-                      type="number"
-                      value={String((editForm.width as number | undefined) ?? selectedOrder.width)}
-                      onChange={(e) => setEditForm((p) => ({ ...p, width: Number(e.target.value) }))}
-                    />
+                    <p className="text-sm text-slate-500">ประเภทงาน</p>
+                    <p className="font-medium">{JOB_TYPE_OPTIONS.find((t) => t.value === selectedOrder.jobType)?.label}</p>
                   </div>
                   <div className="space-y-1">
-                    <Label>สูง (m)</Label>
-                    <Input
-                      disabled={!isEditing}
-                      type="number"
-                      value={String((editForm.height as number | undefined) ?? selectedOrder.height)}
-                      onChange={(e) => setEditForm((p) => ({ ...p, height: Number(e.target.value) }))}
-                    />
+                    <p className="text-sm text-slate-500">จำนวน</p>
+                    <p className="font-medium">{selectedOrder.quantity}</p>
                   </div>
-
+                  <div className="space-y-1">
+                    <p className="text-sm text-slate-500">กว้าง (m)</p>
+                    <p className="font-medium">{selectedOrder.width}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-slate-500">สูง (m)</p>
+                    <p className="font-medium">{selectedOrder.height}</p>
+                  </div>
                   <div className="col-span-2 space-y-1">
-                    <Label>ราคา/ตร.ม.</Label>
-                    <Input
-                      disabled={!isEditing}
-                      type="number"
-                      value={String((editForm.unitPrice as number | undefined) ?? selectedOrder.unitPrice)}
-                      onChange={(e) => setEditForm((p) => ({ ...p, unitPrice: Number(e.target.value) }))}
-                    />
+                    <p className="text-sm text-slate-500">ราคา/ตร.ม.</p>
+                    <p className="font-medium">{formatCurrency(selectedOrder.unitPrice)}</p>
                   </div>
                 </div>
               </div>
@@ -426,69 +309,32 @@ export function OrdersList() {
                 <h4 className="font-medium text-slate-800">การเงิน</h4>
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-600">ราคารวม:</span>
-                  <span className="font-medium">
-                    {formatCurrency(
-                      calculatePrice(
-                        Number(editForm.width ?? selectedOrder.width),
-                        Number(editForm.height ?? selectedOrder.height),
-                        Number(editForm.quantity ?? selectedOrder.quantity),
-                        Number(editForm.unitPrice ?? selectedOrder.unitPrice)
-                      )
-                    )}
-                  </span>
+                  <span className="font-medium">{formatCurrency(selectedOrder.totalPrice)}</span>
                 </div>
-                <div className="flex items-center justify-between text-sm gap-3">
+                <div className="flex justify-between text-sm">
                   <span className="text-slate-600">มัดจำ:</span>
-                  <div className="w-40">
-                    <Input
-                      disabled={!isEditing}
-                      type="number"
-                      value={String((editForm.deposit as number | undefined) ?? selectedOrder.deposit)}
-                      onChange={(e) => setEditForm((p) => ({ ...p, deposit: Number(e.target.value) }))}
-                    />
-                  </div>
+                  <span className="font-medium">{formatCurrency(selectedOrder.deposit)}</span>
                 </div>
                 <div className="flex justify-between text-sm pt-2 border-t border-blue-200">
                   <span className="text-slate-800 font-medium">คงเหลือ:</span>
-                  <span className="font-bold text-amber-600">
-                    {formatCurrency(
-                      Math.max(
-                        calculatePrice(
-                          Number(editForm.width ?? selectedOrder.width),
-                          Number(editForm.height ?? selectedOrder.height),
-                          Number(editForm.quantity ?? selectedOrder.quantity),
-                          Number(editForm.unitPrice ?? selectedOrder.unitPrice)
-                        ) - Number(editForm.deposit ?? selectedOrder.deposit),
-                        0
-                      )
-                    )}
-                  </span>
+                  <span className="font-bold text-amber-600">{formatCurrency(selectedOrder.remaining)}</span>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="space-y-1">
-                  <Label>วันที่รับ</Label>
-                  <Input disabled value={formatDate(selectedOrder.orderDate)} />
+                  <p className="text-sm text-slate-500">วันที่รับ</p>
+                  <p className="font-medium">{formatDate(selectedOrder.orderDate)}</p>
                 </div>
                 <div className="space-y-1">
-                  <Label>กำหนดส่ง</Label>
-                  <Input
-                    disabled={!isEditing}
-                    type="date"
-                    value={String((editForm.dueDate as string | undefined) ?? selectedOrder.dueDate)}
-                    onChange={(e) => setEditForm((p) => ({ ...p, dueDate: e.target.value }))}
-                  />
+                  <p className="text-sm text-slate-500">กำหนดส่ง</p>
+                  <p className="font-medium">{selectedOrder.dueDate ? formatDate(selectedOrder.dueDate) : '-'}</p>
                 </div>
               </div>
 
               <div className="space-y-1">
-                <Label>หมายเหตุ</Label>
-                <Textarea
-                  disabled={!isEditing}
-                  value={(editForm.notes as string | undefined) ?? ''}
-                  onChange={(e) => setEditForm((p) => ({ ...p, notes: e.target.value }))}
-                />
+                <p className="text-sm text-slate-500">หมายเหตุ</p>
+                <p className="font-medium">{selectedOrder.notes || '-'}</p>
               </div>
 
               <div className="flex gap-2 pt-2">
