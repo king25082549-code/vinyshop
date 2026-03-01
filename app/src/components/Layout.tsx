@@ -15,7 +15,7 @@ export function Layout({ children, currentPage, onPageChange }: LayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="scroll-container bg-slate-50 flex">
       {/* Sidebar Navigation */}
       <Navigation
         currentPage={currentPage}
@@ -27,11 +27,11 @@ export function Layout({ children, currentPage, onPageChange }: LayoutProps) {
       {/* Main Content */}
       <main
         className={cn(
-          'flex-1 transition-all duration-300 ease-in-out',
+          'flex-1 transition-all duration-300 ease-in-out main-content',
           isSidebarOpen ? 'ml-64' : 'ml-20'
         )}
       >
-        <div className="p-6 min-h-screen">
+        <div className="p-6">
           {children}
         </div>
       </main>

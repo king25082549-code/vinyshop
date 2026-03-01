@@ -170,7 +170,7 @@ export function OrdersList() {
       {/* Orders Table */}
       <Card>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          <div className="table-container overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -288,13 +288,13 @@ export function OrdersList() {
           }
         }}
       >
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg modal-content">
           <DialogHeader>
             <DialogTitle>รายละเอียดออเดอร์</DialogTitle>
           </DialogHeader>
 
           {selectedOrder && (
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto">
               <div className="bg-slate-50 p-4 rounded-lg">
                 <div className="flex justify-between items-start gap-2">
                   <div>

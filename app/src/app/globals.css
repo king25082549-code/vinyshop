@@ -71,5 +71,34 @@
   }
   body {
     @apply bg-background text-foreground;
+    height: 100vh;
+    overflow: hidden;
+  }
+  html {
+    height: 100vh;
+  }
+}
+
+@layer utilities {
+  .scroll-container {
+    height: 100vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  
+  .main-content {
+    height: calc(100vh - 64px);
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  
+  .modal-content {
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  
+  .table-container {
+    max-height: calc(100vh - 300px);
+    overflow-y: auto;
   }
 }
