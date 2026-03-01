@@ -10,6 +10,8 @@ node_modules/
 /dist/
 app/dist/
 app/.next/
+.next/
+node_modules/
 
 # Logs
 npm-debug.log*
