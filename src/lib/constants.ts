@@ -1,4 +1,4 @@
-import type { StatusConfig, JobTypeConfig, PaymentStatusConfig, InventoryCategory, UnitType } from '@/types';
+import type { StatusConfig, JobTypeConfig, PaymentStatusConfig } from '@/types';
 
 export const ORDER_STATUS_CONFIG: Record<string, StatusConfig> = {
   pending: {
@@ -19,16 +19,28 @@ export const ORDER_STATUS_CONFIG: Record<string, StatusConfig> = {
     bgColor: 'bg-orange-100',
     icon: 'Printer',
   },
-  printed: {
-    label: 'พิมพ์แล้ว',
-    color: '#8B5CF6',
-    bgColor: 'bg-purple-100',
-    icon: 'CheckCircle',
-  },
   finishing: {
     label: 'ตัด/เก็บขอบ',
     color: '#10B981',
     bgColor: 'bg-emerald-100',
+    icon: 'Scissors',
+  },
+  eyelet: {
+    label: 'รอเจาะตาไก่',
+    color: '#8B5CF6',
+    bgColor: 'bg-purple-100',
+    icon: 'Circle',
+  },
+  'frame-assembly': {
+    label: 'รอขึ้นโครง',
+    color: '#EC4899',
+    bgColor: 'bg-pink-100',
+    icon: 'Frame',
+  },
+  'die-cut': {
+    label: 'รอไดคัท',
+    color: '#14B8A6',
+    bgColor: 'bg-teal-100',
     icon: 'Scissors',
   },
   completed: {
@@ -86,7 +98,7 @@ export const PAYMENT_STATUS_CONFIG: Record<string, PaymentStatusConfig> = {
   },
 };
 
-export const INVENTORY_CATEGORY_LABELS: Record<InventoryCategory, string> = {
+export const INVENTORY_CATEGORY_LABELS: Record<string, string> = {
   vinyl: 'ไวนิล',
   ink: 'หมึกพิมพ์',
   sticker: 'สติ๊กเกอร์',
@@ -95,7 +107,7 @@ export const INVENTORY_CATEGORY_LABELS: Record<InventoryCategory, string> = {
   accessories: 'อุปกรณ์เสริม',
 };
 
-export const UNIT_LABELS: Record<UnitType, string> = {
+export const UNIT_LABELS: Record<string, string> = {
   meter: 'เมตร',
   roll: 'ม้วน',
   sheet: 'แผ่น',
@@ -104,13 +116,12 @@ export const UNIT_LABELS: Record<UnitType, string> = {
 };
 
 export const KANBAN_COLUMNS = [
-  { id: 'pending', status: 'pending' },
-  { id: 'design', status: 'design' },
   { id: 'ready-to-print', status: 'ready-to-print' },
-  { id: 'printed', status: 'printed' },
   { id: 'finishing', status: 'finishing' },
+  { id: 'eyelet', status: 'eyelet' },
+  { id: 'frame-assembly', status: 'frame-assembly' },
+  { id: 'die-cut', status: 'die-cut' },
   { id: 'completed', status: 'completed' },
-  { id: 'delivered', status: 'delivered' },
 ] as const;
 
 export const JOB_TYPE_OPTIONS = [

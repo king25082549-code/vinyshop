@@ -28,7 +28,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils';
-import { PAYMENT_STATUS_CONFIG, JOB_TYPE_OPTIONS } from '@/lib/constants';
+import { PAYMENT_STATUS_CONFIG } from '@/lib/constants';
 import {
   BarChart,
   Bar,
@@ -120,7 +120,7 @@ export function Finance() {
     const data: Record<string, { type: string; revenue: number; count: number }> = {};
 
     filteredOrders.forEach((order) => {
-      const typeLabel = JOB_TYPE_OPTIONS.find((t) => t.value === order.jobType)?.label || 'อื่นๆ';
+      const typeLabel = order.jobType || 'อื่นๆ';
       if (!data[order.jobType]) {
         data[order.jobType] = {
           type: typeLabel,
@@ -345,7 +345,7 @@ export function Finance() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">
-                          {JOB_TYPE_OPTIONS.find((t) => t.value === order.jobType)?.label}
+                          {order.jobType}
                         </Badge>
                       </TableCell>
                       <TableCell>{formatCurrency(order.totalPrice)}</TableCell>

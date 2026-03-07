@@ -1,23 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { useOrders } from '@/hooks/useOrders';
 import { useInventory } from '@/hooks/useInventory';
-import { JOB_TYPE_OPTIONS } from '@/lib/constants';
-import { formatCurrency, calculatePrice } from '@/lib/utils';
-import type { Order, JobType, PaymentStatus } from '@/types';
+import { AddableSelect } from '@/components/ui/addable-select';
+import { formatCurrency } from '@/lib/utils';
+import type { PaymentStatus, DynamicOption } from '@/types';
 import {
   User,
   Phone,
@@ -30,6 +23,8 @@ import {
   Calculator,
   CheckCircle,
   Package,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -37,39 +32,87 @@ interface OrderFormProps {
   onSuccess?: () => void;
 }
 
+interface OrderItemForm {
+  jobType: string;
+  width: string;
+  height: string;
+  quantity: string;
+  unitPrice: string;
+}
+
+const emptyItem: OrderItemForm = {
+  jobType: '',
+  width: '',
+  height: '',
+  quantity: '1',
+  unitPrice: '',
+};
+
+function calculateItemPrice(item: OrderItemForm): number {
+  const w = parseFloat(item.width) || 0;
+  const h = parseFloat(item.height) || 0;
+  const q = parseInt(item.quantity) || 0;
+  const u = parseFloat(item.unitPrice) || 0;
+  // width/height are in cm, convert to meters for sqm calculation
+  const areaSqm = (w / 100) * (h / 100) * q;
+  return Math.ceil(areaSqm * u);
+}
+
 export function OrderForm({ onSuccess }: OrderFormProps) {
   const { addOrder } = useOrders();
   const { deductVinylForOrder } = useInventory();
+
+  // Dynamic job types from DB
+  const [dbJobTypes, setDbJobTypes] = useState<DynamicOption[]>([]);
+
+  useEffect(() => {
+    fetch('/api/job-types').then(r => r.json()).then(setDbJobTypes).catch(() => {});
+  }, []);
+
+  const handleAddJobType = async (name: string) => {
+    const res = await fetch('/api/job-types', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }),
+    });
+    if (res.ok) {
+      const jt = await res.json();
+      setDbJobTypes(prev => [...prev, jt]);
+    }
+  };
 
   const [formData, setFormData] = useState({
     customerName: '',
     phone: '',
     lineId: '',
-    jobType: '' as JobType | '',
-    width: '',
-    height: '',
-    quantity: '1',
-    unitPrice: '',
     deposit: '',
     dueDate: '',
     notes: '',
   });
 
+  const [items, setItems] = useState<OrderItemForm[]>([{ ...emptyItem }]);
   const [file, setFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Calculate totals
-  const width = parseFloat(formData.width) || 0;
-  const height = parseFloat(formData.height) || 0;
-  const quantity = parseInt(formData.quantity) || 0;
-  const unitPrice = parseFloat(formData.unitPrice) || 0;
+  // Calculate totals across all items
+  const itemPrices = items.map(calculateItemPrice);
+  const totalPrice = itemPrices.reduce((sum, p) => sum + p, 0);
   const deposit = parseFloat(formData.deposit) || 0;
-
-  const totalPrice = calculatePrice(width, height, quantity, unitPrice);
   const remaining = totalPrice - deposit;
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleItemChange = (index: number, field: keyof OrderItemForm, value: string) => {
+    setItems(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));
+  };
+
+  const addItem = () => {
+    setItems(prev => [...prev, { ...emptyItem }]);
+  };
+
+  const removeItem = (index: number) => {
+    if (items.length <= 1) return;
+    setItems(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -81,19 +124,38 @@ export function OrderForm({ onSuccess }: OrderFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.customerName || !formData.phone || !formData.jobType) {
-      toast.error('กรุณากรอกข้อมูลที่จำเป็น');
+    if (!formData.customerName || !formData.phone) {
+      toast.error('กรุณากรอกข้อมูลลูกค้า');
       return;
     }
 
-    if (width <= 0 || height <= 0 || quantity <= 0 || unitPrice <= 0) {
-      toast.error('กรุณากรอกขนาดและราคาให้ถูกต้อง');
-      return;
+    // Validate all items
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (!item.jobType) {
+        toast.error(`กรุณาเลือกประเภทงานชิ้นที่ ${i + 1}`);
+        return;
+      }
+      const w = parseFloat(item.width) || 0;
+      const h = parseFloat(item.height) || 0;
+      const q = parseInt(item.quantity) || 0;
+      const u = parseFloat(item.unitPrice) || 0;
+      if (w <= 0 || h <= 0 || q <= 0 || u <= 0) {
+        toast.error(`กรุณากรอกขนาดและราคาชิ้นที่ ${i + 1} ให้ถูกต้อง`);
+        return;
+      }
     }
 
     setIsSubmitting(true);
 
     try {
+      // Use first item as the main order data for backward compatibility
+      const firstItem = items[0];
+      const w = parseFloat(firstItem.width) || 0;
+      const h = parseFloat(firstItem.height) || 0;
+      const q = parseInt(firstItem.quantity) || 0;
+      const u = parseFloat(firstItem.unitPrice) || 0;
+
       // Determine payment status
       let paymentStatus: PaymentStatus = 'pending';
       if (deposit >= totalPrice) {
@@ -102,21 +164,20 @@ export function OrderForm({ onSuccess }: OrderFormProps) {
         paymentStatus = 'partial';
       }
 
-      // Create order
-      const orderData: Omit<Order, 'id' | 'createdAt' | 'updatedAt'> = {
+      const orderData = {
         customerName: formData.customerName,
         phone: formData.phone,
         lineId: formData.lineId || undefined,
-        jobType: formData.jobType as JobType,
-        width,
-        height,
-        quantity,
-        unitPrice,
+        jobType: firstItem.jobType,
+        width: w,
+        height: h,
+        quantity: q,
+        unitPrice: u,
         totalPrice,
         deposit,
         remaining,
         paymentStatus,
-        status: 'pending',
+        status: 'pending' as const,
         fileName: file?.name || undefined,
         orderDate: new Date().toISOString().split('T')[0],
         dueDate: formData.dueDate || new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -126,13 +187,41 @@ export function OrderForm({ onSuccess }: OrderFormProps) {
 
       const newOrder = await addOrder(orderData);
 
-      // Auto deduct vinyl stock
-      if (formData.jobType === 'vinyl') {
-        await deductVinylForOrder(width, height, quantity, newOrder.id);
+      // Save additional items to order_items table
+      for (const item of items) {
+        const iw = parseFloat(item.width) || 0;
+        const ih = parseFloat(item.height) || 0;
+        const iq = parseInt(item.quantity) || 0;
+        const iu = parseFloat(item.unitPrice) || 0;
+        const ip = calculateItemPrice(item);
+
+        await fetch('/api/order-items', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId: newOrder.id,
+            jobType: item.jobType,
+            width: iw,
+            height: ih,
+            quantity: iq,
+            unitPrice: iu,
+            totalPrice: ip,
+          }),
+        });
+      }
+
+      // Auto deduct vinyl stock for vinyl items
+      for (const item of items) {
+        if (item.jobType === 'ป้ายไวนิล') {
+          const iw = (parseFloat(item.width) || 0) / 100; // cm to m
+          const ih = (parseFloat(item.height) || 0) / 100;
+          const iq = parseInt(item.quantity) || 0;
+          await deductVinylForOrder(iw, ih, iq, newOrder.id);
+        }
       }
 
       toast.success('สร้างออเดอร์สำเร็จ!', {
-        description: `ใบงาน ${newOrder.id.slice(0, 8)} ถูกสร้างเรียบร้อย`,
+        description: `ใบงาน ${newOrder.id.slice(0, 8)} ถูกสร้างเรียบร้อย (${items.length} ชิ้นงาน)`,
       });
 
       // Reset form
@@ -140,19 +229,15 @@ export function OrderForm({ onSuccess }: OrderFormProps) {
         customerName: '',
         phone: '',
         lineId: '',
-        jobType: '',
-        width: '',
-        height: '',
-        quantity: '1',
-        unitPrice: '',
         deposit: '',
         dueDate: '',
         notes: '',
       });
+      setItems([{ ...emptyItem }]);
       setFile(null);
 
       onSuccess?.();
-    } catch (error) {
+    } catch {
       toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่');
     } finally {
       setIsSubmitting(false);
@@ -220,7 +305,7 @@ export function OrderForm({ onSuccess }: OrderFormProps) {
           </CardContent>
         </Card>
 
-        {/* Job Details */}
+        {/* Job Items */}
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -228,105 +313,128 @@ export function OrderForm({ onSuccess }: OrderFormProps) {
               รายละเอียดงาน
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="jobType">
-                ประเภทงาน <span className="text-red-500">*</span>
-              </Label>
-              <Select
-                value={formData.jobType}
-                onValueChange={(value) => handleInputChange('jobType', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="เลือกประเภทงาน" />
-                </SelectTrigger>
-                <SelectContent>
-                  {JOB_TYPE_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <CardContent className="space-y-6">
+            {items.map((item, index) => {
+              const itemPrice = calculateItemPrice(item);
+              const w = parseFloat(item.width) || 0;
+              const h = parseFloat(item.height) || 0;
+              const q = parseInt(item.quantity) || 0;
+              const u = parseFloat(item.unitPrice) || 0;
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="width">ความกว้าง (เมตร)</Label>
-                <div className="relative">
-                  <Ruler className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <Input
-                    id="width"
-                    type="number"
-                    step="0.01"
-                    placeholder="3.00"
-                    value={formData.width}
-                    onChange={(e) => handleInputChange('width', e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="height">ความสูง (เมตร)</Label>
-                <div className="relative">
-                  <Ruler className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <Input
-                    id="height"
-                    type="number"
-                    step="0.01"
-                    placeholder="2.00"
-                    value={formData.height}
-                    onChange={(e) => handleInputChange('height', e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="quantity">จำนวน</Label>
-                <div className="relative">
-                  <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <Input
-                    id="quantity"
-                    type="number"
-                    min="1"
-                    placeholder="1"
-                    value={formData.quantity}
-                    onChange={(e) => handleInputChange('quantity', e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="unitPrice">ราคาต่อ ตร.ม.</Label>
-                <div className="relative">
-                  <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <Input
-                    id="unitPrice"
-                    type="number"
-                    placeholder="150"
-                    value={formData.unitPrice}
-                    onChange={(e) => handleInputChange('unitPrice', e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-            </div>
+              return (
+                <div key={index} className="border border-slate-200 rounded-lg p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-slate-700">ชิ้นงานที่ {index + 1}</span>
+                    {items.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeItem(index)}
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="w-4 h-4 mr-1" />
+                        ลบ
+                      </Button>
+                    )}
+                  </div>
 
-            {/* Area & Price Calculation */}
-            {width > 0 && height > 0 && unitPrice > 0 && (
-              <div className="bg-blue-50 p-4 rounded-lg space-y-2">
-                <div className="flex items-center gap-2 text-blue-700">
-                  <Calculator className="w-5 h-5" />
-                  <span className="font-medium">คำนวณราคา</span>
+                  <div className="space-y-2">
+                    <Label>
+                      ประเภทงาน <span className="text-red-500">*</span>
+                    </Label>
+                    <AddableSelect
+                      value={item.jobType}
+                      onValueChange={(v) => handleItemChange(index, 'jobType', v)}
+                      options={dbJobTypes}
+                      onAddNew={handleAddJobType}
+                      placeholder="เลือกประเภทงาน"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="space-y-2">
+                      <Label>ความกว้าง (cm)</Label>
+                      <div className="relative">
+                        <Ruler className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <Input
+                          type="number"
+                          step="1"
+                          placeholder="100"
+                          value={item.width}
+                          onChange={(e) => handleItemChange(index, 'width', e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>ความสูง (cm)</Label>
+                      <div className="relative">
+                        <Ruler className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <Input
+                          type="number"
+                          step="1"
+                          placeholder="200"
+                          value={item.height}
+                          onChange={(e) => handleItemChange(index, 'height', e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>จำนวน</Label>
+                      <div className="relative">
+                        <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <Input
+                          type="number"
+                          min="1"
+                          placeholder="1"
+                          value={item.quantity}
+                          onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>ราคาต่อชิ้น</Label>
+                      <div className="relative">
+                        <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <Input
+                          type="number"
+                          placeholder="150"
+                          value={item.unitPrice}
+                          onChange={(e) => handleItemChange(index, 'unitPrice', e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Item Price Calculation */}
+                  {w > 0 && h > 0 && u > 0 && (
+                    <div className="bg-blue-50 p-3 rounded-lg">
+                      <div className="flex items-center gap-2 text-blue-700">
+                        <Calculator className="w-4 h-4" />
+                        <span className="text-sm font-medium">
+                          {w} × {h} cm ({q} ชิ้น) = ราคา {formatCurrency(itemPrice)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="text-sm text-slate-600">
-                  พื้นที่: {(width * height * quantity).toFixed(2)} ตร.ม. ({width} × {height} × {quantity})
-                </div>
-                <div className="text-lg font-bold text-blue-700">
-                  ราคารวม: {formatCurrency(totalPrice)}
-                </div>
-              </div>
-            )}
+              );
+            })}
+
+            {/* Add Item Button */}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={addItem}
+              className="w-full border-dashed border-2 h-12 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+            >
+              <Plus className="w-5 h-5 mr-2" />
+              เพิ่มชิ้นงาน
+            </Button>
 
             <div className="space-y-2">
               <Label htmlFor="file">ไฟล์งาน (PDF, JPG, PNG)</Label>
@@ -397,8 +505,18 @@ export function OrderForm({ onSuccess }: OrderFormProps) {
 
             {totalPrice > 0 && (
               <div className="bg-slate-50 p-4 rounded-lg">
+                {items.length > 1 && (
+                  <div className="space-y-1 mb-2 pb-2 border-b border-slate-200">
+                    {items.map((item, i) => (
+                      <div key={i} className="flex justify-between text-sm text-slate-600">
+                        <span>ชิ้นที่ {i + 1}: {item.jobType || '-'}</span>
+                        <span>{formatCurrency(itemPrices[i])}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-600">ราคารวม:</span>
+                  <span className="text-slate-600">ราคารวม ({items.length} ชิ้นงาน):</span>
                   <span className="font-semibold">{formatCurrency(totalPrice)}</span>
                 </div>
                 <div className="flex justify-between items-center">
@@ -407,7 +525,7 @@ export function OrderForm({ onSuccess }: OrderFormProps) {
                 </div>
                 <div className="flex justify-between items-center pt-2 border-t border-slate-200 mt-2">
                   <span className="text-slate-800 font-medium">คงเหลือ:</span>
-                  <span className={`font-bold ${remaining === 0 ? 'text-green-600' : 'text-amber-600'}`}>
+                  <span className={`font-bold ${remaining <= 0 ? 'text-green-600' : 'text-amber-600'}`}>
                     {formatCurrency(remaining)}
                   </span>
                 </div>
@@ -442,7 +560,7 @@ export function OrderForm({ onSuccess }: OrderFormProps) {
             ) : (
               <span className="flex items-center gap-2">
                 <CheckCircle className="w-5 h-5" />
-                สร้างใบงาน
+                สร้างใบงาน ({items.length} ชิ้นงาน)
               </span>
             )}
           </Button>

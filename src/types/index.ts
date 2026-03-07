@@ -3,18 +3,15 @@ export type OrderStatus =
   | 'pending'
   | 'design'
   | 'ready-to-print'
-  | 'printed'
   | 'finishing'
+  | 'eyelet'
+  | 'frame-assembly'
+  | 'die-cut'
   | 'completed'
   | 'delivered';
 
-// Job Types
-export type JobType = 
-  | 'vinyl'
-  | 'sticker'
-  | 'backdrop'
-  | 'rollup'
-  | 'other';
+// Job Types (now dynamic from DB, keep string type)
+export type JobType = string;
 
 // Payment Status
 export type PaymentStatus = 
@@ -22,22 +19,11 @@ export type PaymentStatus =
   | 'partial'
   | 'paid';
 
-// Inventory Category
-export type InventoryCategory = 
-  | 'vinyl'
-  | 'ink'
-  | 'sticker'
-  | 'board'
-  | 'frame'
-  | 'accessories';
+// Inventory Category (now dynamic from DB)
+export type InventoryCategory = string;
 
-// Unit Types
-export type UnitType = 
-  | 'meter'
-  | 'roll'
-  | 'sheet'
-  | 'piece'
-  | 'liter';
+// Unit Types (now dynamic from DB)
+export type UnitType = string;
 
 // Transaction Type
 export type TransactionType = 
@@ -160,4 +146,24 @@ export interface DailyRevenue {
   date: string;
   revenue: number;
   orders: number;
+}
+
+// Order Item (for multi-item orders)
+export interface OrderItem {
+  id: string;
+  orderId: string;
+  jobType: string;
+  width: number;
+  height: number;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  notes?: string;
+  createdAt: string;
+}
+
+// Dynamic option from DB
+export interface DynamicOption {
+  id: string;
+  name: string;
 }

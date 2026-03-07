@@ -36,7 +36,7 @@ import {
   Pencil,
   X,
 } from 'lucide-react';
-import { ORDER_STATUS_CONFIG, JOB_TYPE_OPTIONS } from '@/lib/constants';
+import { ORDER_STATUS_CONFIG } from '@/lib/constants';
 import { calculatePrice, formatCurrency, formatDate, getDaysUntilDue, getDueDateBadge } from '@/lib/utils';
 import type { Order, OrderStatus } from '@/types';
 import { toast } from 'sonner';
@@ -49,6 +49,7 @@ export function OrdersList() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Order>>({});
+  const [groupByCustomer, setGroupByCustomer] = useState(false);
 
   // Filter orders
   const filteredOrders = orders.filter((order) => {
@@ -163,6 +164,13 @@ export function OrdersList() {
                 </SelectContent>
               </Select>
             </div>
+            <Button
+              variant={groupByCustomer ? 'default' : 'outline'}
+              onClick={() => setGroupByCustomer(!groupByCustomer)}
+              className="whitespace-nowrap"
+            >
+              จัดกลุ่มลูกค้า
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -190,7 +198,77 @@ export function OrdersList() {
                       ไม่พบรายการออเดอร์
                     </TableCell>
                   </TableRow>
+                ) : groupByCustomer ? (
+                  // Grouped by customer view
+                  (() => {
+                    const grouped: Record<string, Order[]> = {};
+                    filteredOrders.forEach((o) => {
+                      const key = o.customerName;
+                      if (!grouped[key]) grouped[key] = [];
+                      grouped[key].push(o);
+                    });
+                    return Object.entries(grouped).map(([customerName, customerOrders]) => (
+                      <>
+                        <TableRow key={`group-${customerName}`} className="bg-slate-100">
+                          <TableCell colSpan={7} className="font-bold text-slate-700 py-2">
+                            {customerName} ({customerOrders.length} งาน)
+                          </TableCell>
+                        </TableRow>
+                        {customerOrders.map((order) => {
+                          const daysUntilDue = getDaysUntilDue(order.dueDate);
+                          const dueBadge = getDueDateBadge(daysUntilDue);
+                          return (
+                            <TableRow key={order.id} className="hover:bg-slate-50">
+                              <TableCell>
+                                <p className="font-medium text-slate-800 pl-4">
+                                  #{order.id.slice(0, 8).toUpperCase()}
+                                </p>
+                              </TableCell>
+                              <TableCell><Badge variant="outline">{order.jobType}</Badge></TableCell>
+                              <TableCell>
+                                <span className="text-sm">{order.width} × {order.height} cm</span>
+                                <span className="text-slate-500 text-sm"> ({order.quantity} ชิ้น)</span>
+                              </TableCell>
+                              <TableCell>
+                                <p className="font-medium">{formatCurrency(order.totalPrice)}</p>
+                                <p className={`text-xs ${order.remaining === 0 ? 'text-green-600' : 'text-amber-600'}`}>
+                                  {order.remaining === 0 ? 'ชำระครบ' : `ค้าง ${formatCurrency(order.remaining)}`}
+                                </p>
+                              </TableCell>
+                              <TableCell>
+                                <Select value={order.status} onValueChange={(v) => handleStatusChange(order.id, v as OrderStatus)}>
+                                  <SelectTrigger className="w-36">
+                                    <div className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: ORDER_STATUS_CONFIG[order.status]?.color }} />
+                                    <span className="text-xs">{ORDER_STATUS_CONFIG[order.status]?.label}</span>
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {Object.entries(ORDER_STATUS_CONFIG).map(([s, c]) => (
+                                      <SelectItem key={s} value={s}>
+                                        <div className="flex items-center gap-2">
+                                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: c.color }} />
+                                          {c.label}
+                                        </div>
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+                              <TableCell>
+                                <span className={`text-xs px-2 py-1 rounded-full ${dueBadge.color}`}>{dueBadge.label}</span>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button variant="ghost" size="sm" onClick={() => openOrderDialog(order)}>
+                                  <Eye className="w-4 h-4" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </>
+                    ));
+                  })()
                 ) : (
+                  // Flat view
                   filteredOrders.map((order) => {
                     const daysUntilDue = getDaysUntilDue(order.dueDate);
                     const dueBadge = getDueDateBadge(daysUntilDue);
@@ -207,14 +285,14 @@ export function OrdersList() {
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">
-                            {JOB_TYPE_OPTIONS.find((t) => t.value === order.jobType)?.label}
+                            {order.jobType}
                           </Badge>
                         </TableCell>
                         <TableCell>
                           <span className="text-sm">
-                            {order.width} × {order.height} m
+                            {order.width} × {order.height} cm
                           </span>
-                          <span className="text-slate-500 text-sm"> × {order.quantity}</span>
+                          <span className="text-slate-500 text-sm"> ({order.quantity} ชิ้น)</span>
                         </TableCell>
                         <TableCell>
                           <div>
@@ -232,10 +310,10 @@ export function OrdersList() {
                             <SelectTrigger className="w-36">
                               <div
                                 className="w-2 h-2 rounded-full mr-2"
-                                style={{ backgroundColor: ORDER_STATUS_CONFIG[order.status].color }}
+                                style={{ backgroundColor: ORDER_STATUS_CONFIG[order.status]?.color }}
                               />
                               <span className="text-xs">
-                                {ORDER_STATUS_CONFIG[order.status].label}
+                                {ORDER_STATUS_CONFIG[order.status]?.label}
                               </span>
                             </SelectTrigger>
                             <SelectContent>
@@ -361,22 +439,11 @@ export function OrdersList() {
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div className="space-y-1">
                     <Label>ประเภทงาน</Label>
-                    <Select
-                      value={(editForm.jobType as string | undefined) ?? selectedOrder.jobType}
-                      onValueChange={(value) => setEditForm((p) => ({ ...p, jobType: value as Order['jobType'] }))}
+                    <Input
                       disabled={!isEditing}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="เลือกประเภทงาน" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {JOB_TYPE_OPTIONS.map((t) => (
-                          <SelectItem key={t.value} value={t.value}>
-                            {t.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      value={(editForm.jobType as string | undefined) ?? selectedOrder.jobType}
+                      onChange={(e) => setEditForm((p) => ({ ...p, jobType: e.target.value }))}
+                    />
                   </div>
 
                   <div className="space-y-1">
@@ -390,7 +457,7 @@ export function OrdersList() {
                   </div>
 
                   <div className="space-y-1">
-                    <Label>กว้าง (m)</Label>
+                    <Label>กว้าง (cm)</Label>
                     <Input
                       disabled={!isEditing}
                       type="number"
@@ -399,7 +466,7 @@ export function OrdersList() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label>สูง (m)</Label>
+                    <Label>สูง (cm)</Label>
                     <Input
                       disabled={!isEditing}
                       type="number"
@@ -409,7 +476,7 @@ export function OrdersList() {
                   </div>
 
                   <div className="col-span-2 space-y-1">
-                    <Label>ราคา/ตร.ม.</Label>
+                    <Label>ราคาต่อชิ้น</Label>
                     <Input
                       disabled={!isEditing}
                       type="number"

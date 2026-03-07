@@ -24,7 +24,7 @@ import {
   Pie,
   Cell,
 } from 'recharts';
-import { ORDER_STATUS_CONFIG, JOB_TYPE_OPTIONS } from '@/lib/constants';
+import { ORDER_STATUS_CONFIG } from '@/lib/constants';
 
 interface StatCardProps {
   title: string;
@@ -255,7 +255,7 @@ export function Dashboard() {
                     <div>
                       <p className="font-medium text-slate-800">{order.customerName}</p>
                       <p className="text-sm text-slate-500">
-                        {JOB_TYPE_OPTIONS.find((t) => t.value === order.jobType)?.label} • {order.width}x{order.height}m
+                        {order.jobType} • {order.width}x{order.height}cm
                       </p>
                     </div>
                     <div className="text-right">

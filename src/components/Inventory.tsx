@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useInventory } from '@/hooks/useInventory';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -39,9 +39,9 @@ import {
   ArrowDown,
   Box,
 } from 'lucide-react';
-import { INVENTORY_CATEGORY_OPTIONS, UNIT_OPTIONS, INVENTORY_CATEGORY_LABELS, UNIT_LABELS } from '@/lib/constants';
+import { AddableSelect } from '@/components/ui/addable-select';
 import { formatNumber } from '@/lib/utils';
-import type { InventoryItem, InventoryCategory, UnitType, TransactionReason } from '@/types';
+import type { InventoryItem, InventoryCategory, UnitType, TransactionReason, DynamicOption } from '@/types';
 import { toast } from 'sonner';
 
 export function Inventory() {
@@ -49,6 +49,35 @@ export function Inventory() {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [showLowStockOnly, setShowLowStockOnly] = useState(false);
+
+  // Dynamic options from DB
+  const [dbCategories, setDbCategories] = useState<DynamicOption[]>([]);
+  const [dbUnits, setDbUnits] = useState<DynamicOption[]>([]);
+
+  useEffect(() => {
+    fetch('/api/material-categories').then(r => r.json()).then(setDbCategories).catch(() => {});
+    fetch('/api/units').then(r => r.json()).then(setDbUnits).catch(() => {});
+  }, []);
+
+  const handleAddCategory = async (name: string) => {
+    const res = await fetch('/api/material-categories', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }),
+    });
+    if (res.ok) {
+      const cat = await res.json();
+      setDbCategories(prev => [...prev, cat]);
+    }
+  };
+
+  const handleAddUnit = async (name: string) => {
+    const res = await fetch('/api/units', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }),
+    });
+    if (res.ok) {
+      const unit = await res.json();
+      setDbUnits(prev => [...prev, unit]);
+    }
+  };
 
   // New item form
   const [newItem, setNewItem] = useState({
@@ -228,9 +257,9 @@ export function Inventory() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">ทั้งหมด</SelectItem>
-                {INVENTORY_CATEGORY_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
+                {dbCategories.map((opt) => (
+                  <SelectItem key={opt.id} value={opt.name}>
+                    {opt.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -265,39 +294,23 @@ export function Inventory() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>หมวดหมู่</Label>
-                      <Select
+                      <AddableSelect
                         value={newItem.category}
-                        onValueChange={(v) => setNewItem({ ...newItem, category: v as InventoryCategory })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="เลือก" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {INVENTORY_CATEGORY_OPTIONS.map((opt) => (
-                            <SelectItem key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        onValueChange={(v) => setNewItem({ ...newItem, category: v })}
+                        options={dbCategories}
+                        onAddNew={handleAddCategory}
+                        placeholder="เลือกหมวดหมู่"
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label>หน่วย</Label>
-                      <Select
+                      <AddableSelect
                         value={newItem.unit}
-                        onValueChange={(v) => setNewItem({ ...newItem, unit: v as UnitType })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="เลือก" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {UNIT_OPTIONS.map((opt) => (
-                            <SelectItem key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        onValueChange={(v) => setNewItem({ ...newItem, unit: v })}
+                        options={dbUnits}
+                        onAddNew={handleAddUnit}
+                        placeholder="เลือกหน่วย"
+                      />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
@@ -384,17 +397,17 @@ export function Inventory() {
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">
-                            {INVENTORY_CATEGORY_LABELS[item.category]}
+                            {item.category}
                           </Badge>
                         </TableCell>
                         <TableCell>
                           <span className={`font-medium ${isLow ? 'text-red-600' : ''}`}>
-                            {formatNumber(item.currentStock)} {UNIT_LABELS[item.unit]}
+                            {formatNumber(item.currentStock)} {item.unit}
                           </span>
                         </TableCell>
                         <TableCell>
                           <span className="text-slate-500">
-                            {formatNumber(item.minStock)} {UNIT_LABELS[item.unit]}
+                            {formatNumber(item.minStock)} {item.unit}
                           </span>
                         </TableCell>
                         <TableCell>
@@ -430,7 +443,7 @@ export function Inventory() {
                                   <div className="flex justify-between items-center">
                                     <span className="text-slate-600">คงเหลือปัจจุบัน:</span>
                                     <span className="font-bold text-lg">
-                                      {formatNumber(adjustItem?.currentStock || 0)} {adjustItem && UNIT_LABELS[adjustItem.unit]}
+                                      {formatNumber(adjustItem?.currentStock || 0)} {adjustItem?.unit}
                                     </span>
                                   </div>
                                 </div>

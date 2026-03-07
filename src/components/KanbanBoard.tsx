@@ -17,7 +17,7 @@ import {
   Eye,
   AlertCircle,
 } from 'lucide-react';
-import { ORDER_STATUS_CONFIG, JOB_TYPE_OPTIONS, KANBAN_COLUMNS } from '@/lib/constants';
+import { ORDER_STATUS_CONFIG, KANBAN_COLUMNS } from '@/lib/constants';
 import { formatCurrency, formatDate, getDaysUntilDue, getDueDateBadge } from '@/lib/utils';
 import type { Order, OrderStatus } from '@/types';
 import { toast } from 'sonner';
@@ -76,13 +76,13 @@ function KanbanCard({ order }: KanbanCardProps) {
 
           {/* Job Type */}
           <Badge variant="outline" className="text-xs">
-            {JOB_TYPE_OPTIONS.find((t) => t.value === order.jobType)?.label}
+            {order.jobType}
           </Badge>
 
           {/* Details */}
           <div className="text-xs text-slate-600 space-y-1">
             <div className="flex items-center gap-1">
-              <span>{order.width} × {order.height} m × {order.quantity}</span>
+              <span>{order.width} × {order.height} cm ({order.quantity} ชิ้น)</span>
             </div>
             <div className="flex items-center gap-1">
               <span className="font-medium">{formatCurrency(order.totalPrice)}</span>
@@ -137,8 +137,8 @@ function KanbanCard({ order }: KanbanCardProps) {
                   <div className="space-y-2">
                     <h4 className="font-medium text-slate-800">รายละเอียดงาน</h4>
                     <div className="text-sm space-y-1">
-                      <p><span className="text-slate-500">ประเภท:</span> {JOB_TYPE_OPTIONS.find((t) => t.value === order.jobType)?.label}</p>
-                      <p><span className="text-slate-500">ขนาด:</span> {order.width} × {order.height} m</p>
+                      <p><span className="text-slate-500">ประเภท:</span> {order.jobType}</p>
+                      <p><span className="text-slate-500">ขนาด:</span> {order.width} × {order.height} cm</p>
                       <p><span className="text-slate-500">จำนวน:</span> {order.quantity} ชิ้น</p>
                     </div>
                   </div>
