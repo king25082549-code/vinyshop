@@ -49,13 +49,9 @@ const emptyItem: OrderItemForm = {
 };
 
 function calculateItemPrice(item: OrderItemForm): number {
-  const w = parseFloat(item.width) || 0;
-  const h = parseFloat(item.height) || 0;
   const q = parseInt(item.quantity) || 0;
   const u = parseFloat(item.unitPrice) || 0;
-  // width/height are in cm, convert to meters for sqm calculation
-  const areaSqm = (w / 100) * (h / 100) * q;
-  return Math.ceil(areaSqm * u);
+  return q * u;
 }
 
 export function OrderForm({ onSuccess }: OrderFormProps) {
@@ -411,12 +407,12 @@ export function OrderForm({ onSuccess }: OrderFormProps) {
                   </div>
 
                   {/* Item Price Calculation */}
-                  {w > 0 && h > 0 && u > 0 && (
+                  {q > 0 && u > 0 && (
                     <div className="bg-blue-50 p-3 rounded-lg">
                       <div className="flex items-center gap-2 text-blue-700">
                         <Calculator className="w-4 h-4" />
                         <span className="text-sm font-medium">
-                          {w} × {h} cm ({q} ชิ้น) = ราคา {formatCurrency(itemPrice)}
+                          {q} ชิ้น × {formatCurrency(u)} = ราคา {formatCurrency(itemPrice)}
                         </span>
                       </div>
                     </div>

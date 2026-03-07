@@ -1,14 +1,22 @@
 import { neon } from '@neondatabase/serverless';
 import bcrypt from 'bcryptjs';
+import nextEnv from '@next/env';
 
-const rawSql = neon(process.env.DATABASE_URL!);
+const { loadEnvConfig } = nextEnv;
 
-let databaseInitPromise: Promise<void> | null = null;
+loadEnvConfig(process.cwd());
 
-async function initializeDatabase() {
-  await rawSql`CREATE EXTENSION IF NOT EXISTS pgcrypto`;
+if (!process.env.DATABASE_URL) {
+  console.error('DATABASE_URL is missing');
+  process.exit(1);
+}
 
-  await rawSql`
+const sql = neon(process.env.DATABASE_URL);
+
+async function createTables() {
+  await sql`CREATE EXTENSION IF NOT EXISTS pgcrypto`;
+
+  await sql`
     CREATE TABLE IF NOT EXISTS users (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       name TEXT NOT NULL,
@@ -21,7 +29,7 @@ async function initializeDatabase() {
     )
   `;
 
-  await rawSql`
+  await sql`
     CREATE TABLE IF NOT EXISTS orders (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       customer_name TEXT NOT NULL,
@@ -48,7 +56,7 @@ async function initializeDatabase() {
     )
   `;
 
-  await rawSql`
+  await sql`
     CREATE TABLE IF NOT EXISTS inventory (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       name TEXT NOT NULL,
@@ -62,7 +70,7 @@ async function initializeDatabase() {
     )
   `;
 
-  await rawSql`
+  await sql`
     CREATE TABLE IF NOT EXISTS stock_transactions (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       item_id UUID NOT NULL REFERENCES inventory(id) ON DELETE CASCADE,
@@ -77,7 +85,7 @@ async function initializeDatabase() {
     )
   `;
 
-  await rawSql`
+  await sql`
     CREATE TABLE IF NOT EXISTS material_categories (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       name TEXT NOT NULL UNIQUE,
@@ -85,7 +93,7 @@ async function initializeDatabase() {
     )
   `;
 
-  await rawSql`
+  await sql`
     CREATE TABLE IF NOT EXISTS units (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       name TEXT NOT NULL UNIQUE,
@@ -93,7 +101,7 @@ async function initializeDatabase() {
     )
   `;
 
-  await rawSql`
+  await sql`
     CREATE TABLE IF NOT EXISTS job_types (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       name TEXT NOT NULL UNIQUE,
@@ -101,7 +109,7 @@ async function initializeDatabase() {
     )
   `;
 
-  await rawSql`
+  await sql`
     CREATE TABLE IF NOT EXISTS order_items (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
@@ -115,17 +123,12 @@ async function initializeDatabase() {
       created_at TIMESTAMP NOT NULL DEFAULT NOW()
     )
   `;
+}
 
-  await rawSql`CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)`;
-  await rawSql`CREATE INDEX IF NOT EXISTS idx_orders_order_date ON orders(order_date)`;
-  await rawSql`CREATE INDEX IF NOT EXISTS idx_orders_customer_name ON orders(customer_name)`;
-  await rawSql`CREATE INDEX IF NOT EXISTS idx_inventory_category ON inventory(category)`;
-  await rawSql`CREATE INDEX IF NOT EXISTS idx_stock_transactions_item_id ON stock_transactions(item_id)`;
-  await rawSql`CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id)`;
-
+async function seedDefaults() {
   const adminPassword = await bcrypt.hash('admin1234', 10);
 
-  await rawSql`
+  await sql`
     INSERT INTO users (id, name, role, phone, username, password, is_active, created_at)
     VALUES (gen_random_uuid(), 'ผู้ดูแลระบบ', 'admin', NULL, 'admin', ${adminPassword}, true, NOW())
     ON CONFLICT (username) DO NOTHING
@@ -133,7 +136,7 @@ async function initializeDatabase() {
 
   const defaultCategories = ['ไวนิล', 'หมึกพิมพ์', 'สติ๊กเกอร์', 'แผ่นวัสดุ', 'โครง/ขาตั้ง', 'อุปกรณ์เสริม'];
   for (const name of defaultCategories) {
-    await rawSql`
+    await sql`
       INSERT INTO material_categories (id, name)
       VALUES (gen_random_uuid(), ${name})
       ON CONFLICT (name) DO NOTHING
@@ -142,7 +145,7 @@ async function initializeDatabase() {
 
   const defaultUnits = ['เมตร', 'ม้วน', 'แผ่น', 'ชิ้น', 'ลิตร', 'ตร.ม.', 'ฟุต', 'ชุด'];
   for (const name of defaultUnits) {
-    await rawSql`
+    await sql`
       INSERT INTO units (id, name)
       VALUES (gen_random_uuid(), ${name})
       ON CONFLICT (name) DO NOTHING
@@ -151,7 +154,7 @@ async function initializeDatabase() {
 
   const defaultJobTypes = ['ป้ายไวนิล', 'สติ๊กเกอร์', 'แบ็คดรอป', 'โรลอัพ', 'ป้ายโครง', 'ไวนิลเจาะตาไก่', 'สติ๊กเกอร์ไดคัท', 'อื่นๆ'];
   for (const name of defaultJobTypes) {
-    await rawSql`
+    await sql`
       INSERT INTO job_types (id, name)
       VALUES (gen_random_uuid(), ${name})
       ON CONFLICT (name) DO NOTHING
@@ -159,92 +162,25 @@ async function initializeDatabase() {
   }
 }
 
-export async function ensureDatabaseInitialized() {
-  if (!databaseInitPromise) {
-    databaseInitPromise = initializeDatabase().catch((error) => {
-      databaseInitPromise = null;
-      throw error;
-    });
-  }
-
-  await databaseInitPromise;
+async function createIndexes() {
+  await sql`CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_orders_order_date ON orders(order_date)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_orders_customer_name ON orders(customer_name)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_inventory_category ON inventory(category)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_stock_transactions_item_id ON stock_transactions(item_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id)`;
 }
 
-export async function sql(strings: TemplateStringsArray, ...values: unknown[]) {
-  await ensureDatabaseInitialized();
-  return rawSql(strings, ...values);
+async function main() {
+  console.log('Starting database setup...');
+  await createTables();
+  await seedDefaults();
+  await createIndexes();
+  console.log('Database setup completed successfully.');
+  console.log('Default admin login: username=admin password=admin1234');
 }
 
-// snake_case → camelCase conversion functions
-
-export function toOrder(row: Record<string, unknown>) {
-  if (!row) return row;
-  return {
-    id: row.id as string,
-    customerName: row.customer_name as string,
-    phone: row.phone as string,
-    lineId: (row.line_id as string) ?? undefined,
-    jobType: row.job_type as string,
-    width: Number(row.width),
-    height: Number(row.height),
-    quantity: Number(row.quantity),
-    unitPrice: Number(row.unit_price),
-    totalPrice: Number(row.total_price),
-    deposit: Number(row.deposit),
-    remaining: Number(row.remaining),
-    paymentStatus: row.payment_status as string,
-    status: row.status as string,
-    fileUrl: (row.file_url as string) ?? undefined,
-    fileName: (row.file_name as string) ?? undefined,
-    orderDate: typeof row.order_date === 'string' ? row.order_date : new Date(row.order_date as string).toISOString().split('T')[0],
-    dueDate: typeof row.due_date === 'string' ? row.due_date : new Date(row.due_date as string).toISOString().split('T')[0],
-    notes: (row.notes as string) ?? undefined,
-    createdBy: row.created_by as string,
-    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at as string,
-    updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at as string,
-  };
-}
-
-export function toInventoryItem(row: Record<string, unknown>) {
-  if (!row) return row;
-  return {
-    id: row.id as string,
-    name: row.name as string,
-    category: row.category as string,
-    unit: row.unit as string,
-    currentStock: Number(row.current_stock),
-    minStock: Number(row.min_stock),
-    costPerUnit: Number(row.cost_per_unit),
-    supplier: (row.supplier as string) ?? undefined,
-    lastRestocked: (row.last_restocked as string) ?? undefined,
-  };
-}
-
-export function toStockTransaction(row: Record<string, unknown>) {
-  if (!row) return row;
-  return {
-    id: row.id as string,
-    itemId: row.item_id as string,
-    itemName: row.item_name as string,
-    type: row.type as string,
-    quantity: Number(row.quantity),
-    reason: row.reason as string,
-    orderId: (row.order_id as string) ?? undefined,
-    note: (row.note as string) ?? undefined,
-    createdBy: row.created_by as string,
-    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at as string,
-  };
-}
-
-export function toUser(row: Record<string, unknown>) {
-  if (!row) return row;
-  return {
-    id: row.id as string,
-    name: row.name as string,
-    role: row.role as string,
-    phone: (row.phone as string) ?? undefined,
-    username: row.username as string,
-    isActive: row.is_active as boolean,
-    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at as string,
-  };
-}
+main().catch((error) => {
+  console.error('Database setup failed:', error);
+  process.exit(1);
+});

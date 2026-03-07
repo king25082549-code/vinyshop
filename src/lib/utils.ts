@@ -46,8 +46,8 @@ export function calculateArea(width: number, height: number, quantity: number = 
 }
 
 export function calculatePrice(width: number, height: number, quantity: number, unitPrice: number): number {
-  const area = calculateArea(width, height, quantity);
-  return Math.ceil(area * unitPrice);
+  // Simple calculation: quantity × unitPrice (ignore width/height)
+  return Math.ceil(quantity * unitPrice);
 }
 
 export function getInitials(name: string): string {

@@ -25,6 +25,7 @@ import {
   Cell,
 } from 'recharts';
 import { ORDER_STATUS_CONFIG } from '@/lib/constants';
+import { QuickStatusChange } from './QuickStatusChange';
 
 interface StatCardProps {
   title: string;
@@ -316,6 +317,16 @@ export function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Quick Status Change */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold">อัปเดตสถานะงานด่วน</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <QuickStatusChange />
+        </CardContent>
+      </Card>
     </div>
   );
 }

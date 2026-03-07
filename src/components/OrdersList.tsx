@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { useOrders } from '@/hooks/useOrders';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,7 +36,7 @@ import {
   Pencil,
   X,
 } from 'lucide-react';
-import { ORDER_STATUS_CONFIG } from '@/lib/constants';
+import { KANBAN_COLUMNS, ORDER_STATUS_CONFIG } from '@/lib/constants';
 import { calculatePrice, formatCurrency, formatDate, getDaysUntilDue, getDueDateBadge } from '@/lib/utils';
 import type { Order, OrderStatus } from '@/types';
 import { toast } from 'sonner';
@@ -46,10 +46,20 @@ export function OrdersList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [statusPickerOrder, setStatusPickerOrder] = useState<Order | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Order>>({});
   const [groupByCustomer, setGroupByCustomer] = useState(false);
+
+  const workflowStatusOptions = useMemo(
+    () =>
+      KANBAN_COLUMNS.map(({ status }) => ({
+        value: status,
+        config: ORDER_STATUS_CONFIG[status],
+      })),
+    []
+  );
 
   // Filter orders
   const filteredOrders = orders.filter((order) => {
@@ -64,7 +74,25 @@ export function OrdersList() {
   const handleStatusChange = (orderId: string, newStatus: OrderStatus) => {
     updateOrderStatus(orderId, newStatus);
     toast.success('อัปเดตสถานะสำเร็จ');
+    setStatusPickerOrder(null);
   };
+
+  const renderStatusButton = (order: Order) => (
+    <Button
+      variant="outline"
+      className="w-36 justify-between px-3"
+      onClick={() => setStatusPickerOrder(order)}
+    >
+      <span className="flex items-center min-w-0 gap-2">
+        <span
+          className="w-2 h-2 rounded-full shrink-0"
+          style={{ backgroundColor: ORDER_STATUS_CONFIG[order.status]?.color }}
+        />
+        <span className="text-xs truncate">{ORDER_STATUS_CONFIG[order.status]?.label}</span>
+      </span>
+      <span className="text-slate-400">▾</span>
+    </Button>
+  );
 
   const handleDelete = (orderId: string) => {
     if (confirm('ต้องการลบออเดอร์นี้?')) {
@@ -156,8 +184,8 @@ export function OrdersList() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">ทั้งหมด</SelectItem>
-                  {Object.entries(ORDER_STATUS_CONFIG).map(([status, config]) => (
-                    <SelectItem key={status} value={status}>
+                  {workflowStatusOptions.map(({ value, config }) => (
+                    <SelectItem key={value} value={value}>
                       {config.label}
                     </SelectItem>
                   ))}
@@ -208,8 +236,8 @@ export function OrdersList() {
                       grouped[key].push(o);
                     });
                     return Object.entries(grouped).map(([customerName, customerOrders]) => (
-                      <>
-                        <TableRow key={`group-${customerName}`} className="bg-slate-100">
+                      <Fragment key={`group-${customerName}`}>
+                        <TableRow className="bg-slate-100">
                           <TableCell colSpan={7} className="font-bold text-slate-700 py-2">
                             {customerName} ({customerOrders.length} งาน)
                           </TableCell>
@@ -236,22 +264,7 @@ export function OrdersList() {
                                 </p>
                               </TableCell>
                               <TableCell>
-                                <Select value={order.status} onValueChange={(v) => handleStatusChange(order.id, v as OrderStatus)}>
-                                  <SelectTrigger className="w-36">
-                                    <div className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: ORDER_STATUS_CONFIG[order.status]?.color }} />
-                                    <span className="text-xs">{ORDER_STATUS_CONFIG[order.status]?.label}</span>
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {Object.entries(ORDER_STATUS_CONFIG).map(([s, c]) => (
-                                      <SelectItem key={s} value={s}>
-                                        <div className="flex items-center gap-2">
-                                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: c.color }} />
-                                          {c.label}
-                                        </div>
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
+                                {renderStatusButton(order)}
                               </TableCell>
                               <TableCell>
                                 <span className={`text-xs px-2 py-1 rounded-full ${dueBadge.color}`}>{dueBadge.label}</span>
@@ -264,7 +277,7 @@ export function OrdersList() {
                             </TableRow>
                           );
                         })}
-                      </>
+                      </Fragment>
                     ));
                   })()
                 ) : (
@@ -303,33 +316,7 @@ export function OrdersList() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Select
-                            value={order.status}
-                            onValueChange={(value) => handleStatusChange(order.id, value as OrderStatus)}
-                          >
-                            <SelectTrigger className="w-36">
-                              <div
-                                className="w-2 h-2 rounded-full mr-2"
-                                style={{ backgroundColor: ORDER_STATUS_CONFIG[order.status]?.color }}
-                              />
-                              <span className="text-xs">
-                                {ORDER_STATUS_CONFIG[order.status]?.label}
-                              </span>
-                            </SelectTrigger>
-                            <SelectContent>
-                              {Object.entries(ORDER_STATUS_CONFIG).map(([status, config]) => (
-                                <SelectItem key={status} value={status}>
-                                  <div className="flex items-center gap-2">
-                                    <div
-                                      className="w-2 h-2 rounded-full"
-                                      style={{ backgroundColor: config.color }}
-                                    />
-                                    {config.label}
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          {renderStatusButton(order)}
                         </TableCell>
                         <TableCell>
                           <span className={`text-xs px-2 py-1 rounded-full ${dueBadge.color}`}>
@@ -565,6 +552,43 @@ export function OrdersList() {
                   <X className="w-4 h-4 mr-2" />
                   ลบออเดอร์
                 </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(statusPickerOrder)} onOpenChange={(open) => !open && setStatusPickerOrder(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>เลือกสถานะงาน</DialogTitle>
+          </DialogHeader>
+
+          {statusPickerOrder && (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-slate-50 p-4">
+                <p className="font-medium text-slate-800">{statusPickerOrder.customerName}</p>
+                <p className="text-sm text-slate-500">#{statusPickerOrder.id.slice(0, 8).toUpperCase()} • {statusPickerOrder.jobType}</p>
+              </div>
+
+              <div className="space-y-2">
+                {workflowStatusOptions.map(({ value, config }) => {
+                  const active = statusPickerOrder.status === value;
+                  return (
+                    <Button
+                      key={value}
+                      variant={active ? 'default' : 'outline'}
+                      className="w-full justify-start gap-3"
+                      onClick={() => handleStatusChange(statusPickerOrder.id, value as OrderStatus)}
+                    >
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{ backgroundColor: config.color }}
+                      />
+                      <span>{config.label}</span>
+                    </Button>
+                  );
+                })}
               </div>
             </div>
           )}

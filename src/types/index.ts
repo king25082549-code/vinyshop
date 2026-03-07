@@ -3,7 +3,6 @@ export type OrderStatus =
   | 'pending'
   | 'design'
   | 'ready-to-print'
-  | 'finishing'
   | 'eyelet'
   | 'frame-assembly'
   | 'die-cut'

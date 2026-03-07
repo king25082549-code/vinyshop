@@ -19,12 +19,6 @@ export const ORDER_STATUS_CONFIG: Record<string, StatusConfig> = {
     bgColor: 'bg-orange-100',
     icon: 'Printer',
   },
-  finishing: {
-    label: 'ตัด/เก็บขอบ',
-    color: '#10B981',
-    bgColor: 'bg-emerald-100',
-    icon: 'Scissors',
-  },
   eyelet: {
     label: 'รอเจาะตาไก่',
     color: '#8B5CF6',
@@ -32,7 +26,7 @@ export const ORDER_STATUS_CONFIG: Record<string, StatusConfig> = {
     icon: 'Circle',
   },
   'frame-assembly': {
-    label: 'รอขึ้นโครง',
+    label: 'รอยิงโครง',
     color: '#EC4899',
     bgColor: 'bg-pink-100',
     icon: 'Frame',
@@ -44,7 +38,7 @@ export const ORDER_STATUS_CONFIG: Record<string, StatusConfig> = {
     icon: 'Scissors',
   },
   completed: {
-    label: 'เสร็จ/รอรับ',
+    label: 'เสร็จรอรับ',
     color: '#22C55E',
     bgColor: 'bg-green-100',
     icon: 'Package',
@@ -116,8 +110,9 @@ export const UNIT_LABELS: Record<string, string> = {
 };
 
 export const KANBAN_COLUMNS = [
+  { id: 'pending', status: 'pending' },
+  { id: 'design', status: 'design' },
   { id: 'ready-to-print', status: 'ready-to-print' },
-  { id: 'finishing', status: 'finishing' },
   { id: 'eyelet', status: 'eyelet' },
   { id: 'frame-assembly', status: 'frame-assembly' },
   { id: 'die-cut', status: 'die-cut' },

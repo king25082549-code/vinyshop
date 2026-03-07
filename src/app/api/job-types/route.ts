@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     }
     const [jobType] = await sql`
       INSERT INTO job_types (id, name)
-      VALUES (gen_random_uuid()::text, ${name.trim()})
+      VALUES (gen_random_uuid(), ${name.trim()})
       ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
       RETURNING *
     `;
