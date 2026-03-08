@@ -1,6 +1,4 @@
-'use client';
-
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useMemo, useState, useEffect } from 'react';
 import { useOrders } from '@/hooks/useOrders';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -41,8 +39,27 @@ import { calculatePrice, formatCurrency, formatDate, getDaysUntilDue, getDueDate
 import type { Order, OrderStatus } from '@/types';
 import { toast } from 'sonner';
 
+interface OrderItem {
+  id: string;
+  order_id: string;
+  job_type: string;
+  width: number;
+  height: number;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  notes?: string;
+  created_at: string;
+  customer_name: string;
+  phone: string;
+  order_date: string;
+  due_date: string;
+  status: string;
+}
+
 export function OrdersList() {
   const { orders, updateOrder, updateOrderStatus, deleteOrder } = useOrders();
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -50,7 +67,23 @@ export function OrdersList() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Order>>({});
-  const [groupByCustomer, setGroupByCustomer] = useState(false);
+  const [groupByCustomer, setGroupByCustomer] = useState(true);
+
+  // Fetch order items
+  useEffect(() => {
+    const fetchOrderItems = async () => {
+      try {
+        const response = await fetch('/api/order-items/all');
+        if (response.ok) {
+          const items = await response.json();
+          setOrderItems(items);
+        }
+      } catch (error) {
+        console.error('Error fetching order items:', error);
+      }
+    };
+    fetchOrderItems();
+  }, []);
 
   const workflowStatusOptions = useMemo(
     () =>
@@ -61,13 +94,14 @@ export function OrdersList() {
     []
   );
 
-  // Filter orders
-  const filteredOrders = orders.filter((order) => {
+  // Filter order items
+  const filteredItems = orderItems.filter((item) => {
     const matchesSearch =
-      order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.phone.includes(searchTerm) ||
-      order.id.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
+      item.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.phone.includes(searchTerm) ||
+      item.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.order_id.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -159,7 +193,7 @@ export function OrdersList() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">ใบงานทั้งหมด</h1>
-          <p className="text-slate-500">รายการออเดอร์ทั้งหมด {filteredOrders.length} รายการ</p>
+          <p className="text-slate-500">รายการชิ้นงานทั้งหมด {filteredItems.length} รายการ</p>
         </div>
       </div>
 
@@ -220,57 +254,79 @@ export function OrdersList() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredOrders.length === 0 ? (
+                {filteredItems.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-8 text-slate-500">
-                      ไม่พบรายการออเดอร์
+                      ไม่พบรายการชิ้นงาน
                     </TableCell>
                   </TableRow>
                 ) : groupByCustomer ? (
                   // Grouped by customer view
                   (() => {
-                    const grouped: Record<string, Order[]> = {};
-                    filteredOrders.forEach((o) => {
-                      const key = o.customerName;
+                    const grouped: Record<string, OrderItem[]> = {};
+                    filteredItems.forEach((item) => {
+                      const key = item.customer_name;
                       if (!grouped[key]) grouped[key] = [];
-                      grouped[key].push(o);
+                      grouped[key].push(item);
                     });
-                    return Object.entries(grouped).map(([customerName, customerOrders]) => (
+                    return Object.entries(grouped).map(([customerName, customerItems]) => (
                       <Fragment key={`group-${customerName}`}>
                         <TableRow className="bg-slate-100">
-                          <TableCell colSpan={7} className="font-bold text-slate-700 py-2">
-                            {customerName} ({customerOrders.length} งาน)
+                          <TableCell colSpan={7} className="font-bold text-slate-700 py-3">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <span className="text-lg">{customerName}</span>
+                                <span className="ml-2 text-sm font-normal text-slate-600">
+                                  ({customerItems.length} ชิ้นงาน)
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-4 text-sm">
+                                <div>
+                                  <span className="text-slate-600">มูลค่ารวม: </span>
+                                  <span className="font-bold text-green-600">
+                                    {formatCurrency(customerItems.reduce((sum, item) => sum + item.total_price, 0))}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
                           </TableCell>
                         </TableRow>
-                        {customerOrders.map((order) => {
-                          const daysUntilDue = getDaysUntilDue(order.dueDate);
+                        {customerItems.map((item) => {
+                          const daysUntilDue = getDaysUntilDue(item.due_date);
                           const dueBadge = getDueDateBadge(daysUntilDue);
                           return (
-                            <TableRow key={order.id} className="hover:bg-slate-50">
+                            <TableRow key={item.id} className="hover:bg-slate-50">
                               <TableCell>
                                 <p className="font-medium text-slate-800 pl-4">
-                                  #{order.id.slice(0, 8).toUpperCase()}
+                                  #{item.order_id.slice(0, 8).toUpperCase()}
                                 </p>
+                                <p className="text-xs text-slate-500">ชิ้นงาน #{item.id.slice(0, 8).toUpperCase()}</p>
                               </TableCell>
-                              <TableCell><Badge variant="outline">{order.jobType}</Badge></TableCell>
+                              <TableCell><Badge variant="outline">{item.job_type}</Badge></TableCell>
                               <TableCell>
-                                <span className="text-sm">{order.width} × {order.height} cm</span>
-                                <span className="text-slate-500 text-sm"> ({order.quantity} ชิ้น)</span>
-                              </TableCell>
-                              <TableCell>
-                                <p className="font-medium">{formatCurrency(order.totalPrice)}</p>
-                                <p className={`text-xs ${order.remaining === 0 ? 'text-green-600' : 'text-amber-600'}`}>
-                                  {order.remaining === 0 ? 'ชำระครบ' : `ค้าง ${formatCurrency(order.remaining)}`}
-                                </p>
+                                <span className="text-sm">{item.width} × {item.height} cm</span>
+                                <span className="text-slate-500 text-sm"> ({item.quantity} ชิ้น)</span>
                               </TableCell>
                               <TableCell>
-                                {renderStatusButton(order)}
+                                <p className="font-medium">{formatCurrency(item.total_price)}</p>
+                                <p className="text-xs text-slate-500">@{formatCurrency(item.unit_price)}/ชิ้น</p>
+                              </TableCell>
+                              <TableCell>
+                                <span
+                                  className="px-3 py-1 rounded-full text-sm font-medium"
+                                  style={{
+                                    backgroundColor: `${ORDER_STATUS_CONFIG[item.status as OrderStatus]?.color}20`,
+                                    color: ORDER_STATUS_CONFIG[item.status as OrderStatus]?.color,
+                                  }}
+                                >
+                                  {ORDER_STATUS_CONFIG[item.status as OrderStatus]?.label}
+                                </span>
                               </TableCell>
                               <TableCell>
                                 <span className={`text-xs px-2 py-1 rounded-full ${dueBadge.color}`}>{dueBadge.label}</span>
                               </TableCell>
                               <TableCell className="text-right">
-                                <Button variant="ghost" size="sm" onClick={() => openOrderDialog(order)}>
+                                <Button variant="ghost" size="sm">
                                   <Eye className="w-4 h-4" />
                                 </Button>
                               </TableCell>
@@ -282,41 +338,48 @@ export function OrdersList() {
                   })()
                 ) : (
                   // Flat view
-                  filteredOrders.map((order) => {
-                    const daysUntilDue = getDaysUntilDue(order.dueDate);
+                  filteredItems.map((item) => {
+                    const daysUntilDue = getDaysUntilDue(item.due_date);
                     const dueBadge = getDueDateBadge(daysUntilDue);
 
                     return (
-                      <TableRow key={order.id} className="hover:bg-slate-50">
+                      <TableRow key={item.id} className="hover:bg-slate-50">
                         <TableCell>
                           <div>
                             <p className="font-medium text-slate-800">
-                              #{order.id.slice(0, 8).toUpperCase()}
+                              #{item.order_id.slice(0, 8).toUpperCase()}
                             </p>
-                            <p className="text-sm text-slate-500">{order.customerName}</p>
+                            <p className="text-sm text-slate-500">{item.customer_name}</p>
+                            <p className="text-xs text-slate-400">ชิ้นงาน #{item.id.slice(0, 8).toUpperCase()}</p>
                           </div>
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">
-                            {order.jobType}
+                            {item.job_type}
                           </Badge>
                         </TableCell>
                         <TableCell>
                           <span className="text-sm">
-                            {order.width} × {order.height} cm
+                            {item.width} × {item.height} cm
                           </span>
-                          <span className="text-slate-500 text-sm"> ({order.quantity} ชิ้น)</span>
+                          <span className="text-slate-500 text-sm"> ({item.quantity} ชิ้น)</span>
                         </TableCell>
                         <TableCell>
                           <div>
-                            <p className="font-medium">{formatCurrency(order.totalPrice)}</p>
-                            <p className={`text-xs ${order.remaining === 0 ? 'text-green-600' : 'text-amber-600'}`}>
-                              {order.remaining === 0 ? 'ชำระครบ' : `ค้าง ${formatCurrency(order.remaining)}`}
-                            </p>
+                            <p className="font-medium">{formatCurrency(item.total_price)}</p>
+                            <p className="text-xs text-slate-500">@{formatCurrency(item.unit_price)}/ชิ้น</p>
                           </div>
                         </TableCell>
                         <TableCell>
-                          {renderStatusButton(order)}
+                          <span
+                            className="px-3 py-1 rounded-full text-sm font-medium"
+                            style={{
+                              backgroundColor: `${ORDER_STATUS_CONFIG[item.status as OrderStatus]?.color}20`,
+                              color: ORDER_STATUS_CONFIG[item.status as OrderStatus]?.color,
+                            }}
+                          >
+                            {ORDER_STATUS_CONFIG[item.status as OrderStatus]?.label}
+                          </span>
                         </TableCell>
                         <TableCell>
                           <span className={`text-xs px-2 py-1 rounded-full ${dueBadge.color}`}>
@@ -327,7 +390,6 @@ export function OrdersList() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => openOrderDialog(order)}
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
